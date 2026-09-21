@@ -80,7 +80,7 @@ function App() {
     context.beginPath();
     context.moveTo(point.x, point.y);
     context.strokeStyle = selectedColor;
-    context.lineWidth = 7;
+    context.lineWidth = 10;
     context.lineCap = 'round';
     context.lineJoin = 'round';
     canvas.setPointerCapture(event.pointerId);
@@ -148,7 +148,7 @@ function App() {
           <p data-testid="text-tagline">leave something lovely behind.</p>
         </div>
         <div className="plant-count" aria-live="polite" data-testid="text-plant-count">
-          <span>plants added</span>
+          <span><strong>{flowers.length}</strong> {flowers.length === 1 ? 'plant' : 'plants'} added</span>
         </div>
       </header>
 

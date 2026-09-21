@@ -130,13 +130,13 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 .planted-flower {
   background: transparent;
   border: 0;
-  height: clamp(60px, 9vw, 100px);
+  height: clamp(84px, 11vw, 150px);
   padding: 0;
   pointer-events: auto;
   position: absolute;
   transform: translate(-50%, -50%);
   transition: transform .17s ease;
-  width: clamp(60px, 9vw, 100px);
+  width: clamp(84px, 11vw, 150px);
 }
 
 .planted-flower:hover, .planted-flower:focus-visible {
@@ -182,7 +182,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 .drawing-wrap {
   background: rgba(255, 255, 255, .14);
   border: 1px dashed var(--line);
-  height: 176px;
+  height: 186px;
   position: relative;
 }
 
@@ -366,7 +366,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
   .plant-count { top: auto; right: 0; }
   .garden-layout { gap: 30px; grid-template-columns: minmax(390px, 1fr) 215px; }
   .plant-panel { width: 215px; }
-  .drawing-wrap { height: 155px; }
+  .drawing-wrap { height: 165px; }
 }
 
 @media (max-width: 650px) {
@@ -377,7 +377,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
   .garden-layout { display: flex; flex-direction: column; gap: 28px; margin-top: 20px; }
   .garden-side { width: min(100%, 480px); }
   .plant-panel { width: min(100%, 280px); }
-  .drawing-wrap { height: 180px; }
+  .drawing-wrap { height: 190px; }
   .garden-note { margin-top: 2px; }
   .gallery-button { margin-top: 38px; }
 }
