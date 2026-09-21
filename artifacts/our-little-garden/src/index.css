@@ -88,25 +88,6 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
   white-space: nowrap;
 }
 
-.count-mark {
-  border: 1px solid var(--plant);
-  border-radius: 50%;
-  display: inline-block;
-  height: 8px;
-  position: relative;
-  width: 8px;
-}
-
-.count-mark::after {
-  border-left: 1px solid var(--plant);
-  content: '';
-  height: 5px;
-  left: 3px;
-  position: absolute;
-  top: 6px;
-  transform: rotate(35deg);
-}
-
 .plant-count strong { color: var(--ink); font-weight: 500; }
 
 .garden-layout {
@@ -149,13 +130,13 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 .planted-flower {
   background: transparent;
   border: 0;
-  height: clamp(43px, 6.4vw, 68px);
+  height: clamp(60px, 9vw, 100px);
   padding: 0;
   pointer-events: auto;
   position: absolute;
   transform: translate(-50%, -50%);
   transition: transform .17s ease;
-  width: clamp(43px, 6.4vw, 68px);
+  width: clamp(60px, 9vw, 100px);
 }
 
 .planted-flower:hover, .planted-flower:focus-visible {

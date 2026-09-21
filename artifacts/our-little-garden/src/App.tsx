@@ -148,8 +148,7 @@ function App() {
           <p data-testid="text-tagline">leave something lovely behind.</p>
         </div>
         <div className="plant-count" aria-live="polite" data-testid="text-plant-count">
-          <span className="count-mark" aria-hidden="true" />
-          <span><strong>{flowers.length}</strong> {flowers.length === 1 ? 'plant' : 'plants'} planted</span>
+          <span>plants added</span>
         </div>
       </header>
 
