@@ -16,6 +16,7 @@ type Flower = {
   message: string;
   color: string;
   drawing: string;
+  drawingCropped?: boolean;
   x: number;
   y: number;
 };
@@ -34,6 +35,67 @@ function makeId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function cropCanvasToContent(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext('2d');
+  if (!context) return canvas.toDataURL('image/png');
+
+  const { width, height } = canvas;
+  const pixels = context.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] > 12) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < 0 || maxY < 0) return canvas.toDataURL('image/png');
+
+  const padding = 18;
+  const cropX = Math.max(0, minX - padding);
+  const cropY = Math.max(0, minY - padding);
+  const cropWidth = Math.min(width - cropX, maxX - minX + padding * 2);
+  const cropHeight = Math.min(height - cropY, maxY - minY + padding * 2);
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = cropWidth;
+  croppedCanvas.height = cropHeight;
+  croppedCanvas.getContext('2d')?.drawImage(
+    canvas,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight,
+  );
+  return croppedCanvas.toDataURL('image/png');
+}
+
+function cropDataUrlToContent(dataUrl: string) {
+  return new Promise<string>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext('2d')?.drawImage(image, 0, 0);
+      resolve(cropCanvasToContent(canvas));
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [flowers, setFlowers] = useState<Flower[]>(loadFlowers);
@@ -49,6 +111,28 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(flowers));
   }, [flowers]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    const oldDrawings = flowers.filter((flower) => !flower.drawingCropped);
+    if (oldDrawings.length === 0) return undefined;
+
+    Promise.all(
+      flowers.map(async (flower) => ({
+        ...flower,
+        drawing: flower.drawingCropped
+          ? flower.drawing
+          : await cropDataUrlToContent(flower.drawing),
+        drawingCropped: true,
+      })),
+    ).then((updatedFlowers) => {
+      if (isCurrent) setFlowers(updatedFlowers);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -117,7 +201,7 @@ function App() {
   function openPlanting() {
     const canvas = canvasRef.current;
     if (!hasDrawing || !canvas) return;
-    setDrawingPreview(canvas.toDataURL('image/png'));
+    setDrawingPreview(cropCanvasToContent(canvas));
     setIsPlanting(true);
   }
 
@@ -130,6 +214,7 @@ function App() {
       message: message.trim(),
       color: selectedColor,
       drawing: drawingPreview,
+      drawingCropped: true,
       x: 19 + Math.random() * 62,
       y: 19 + Math.random() * 56,
     };

@@ -130,13 +130,13 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 .planted-flower {
   background: transparent;
   border: 0;
-  height: clamp(84px, 11vw, 150px);
+  height: clamp(120px, 14vw, 190px);
   padding: 0;
   pointer-events: auto;
   position: absolute;
   transform: translate(-50%, -50%);
   transition: transform .17s ease;
-  width: clamp(84px, 11vw, 150px);
+  width: clamp(120px, 14vw, 190px);
 }
 
 .planted-flower:hover, .planted-flower:focus-visible {
