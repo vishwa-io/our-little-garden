@@ -164,7 +164,7 @@ function App() {
     context.beginPath();
     context.moveTo(point.x, point.y);
     context.strokeStyle = selectedColor;
-    context.lineWidth = 10;
+    context.lineWidth = 14;
     context.lineCap = 'round';
     context.lineJoin = 'round';
     canvas.setPointerCapture(event.pointerId);
