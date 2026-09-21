@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Our Little Garden"
+description = "A small interactive garden where people draw a flower, leave a short note, and plant it into a shared-feeling local garden."
+version = "1.0.0"
+id = "artifacts/our-little-garden"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22717
+
+[services.development]
+run = "pnpm --filter @workspace/our-little-garden run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/our-little-garden", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/our-little-garden/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22717"
+BASE_PATH = "/"
