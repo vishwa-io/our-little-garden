@@ -44,9 +44,9 @@ function seededValue(seed: number) {
 }
 
 function isInsideGarden(x: number, y: number) {
-  const horizontal = (x - 50) / 46;
-  const vertical = (y - 50) / 44;
-  return horizontal * horizontal + vertical * vertical <= 0.9;
+  const horizontal = (x - 50) / 35;
+  const vertical = (y - 48) / 34;
+  return horizontal * horizontal + vertical * vertical <= 0.82;
 }
 
 function getFlowerPositions(flowers: Flower[]) {
@@ -56,18 +56,18 @@ function getFlowerPositions(flowers: Flower[]) {
     .slice(0, MAX_VISIBLE_FLOWERS);
 
   const positions = new Map<string, { x: number; y: number }>();
-  const minDistance = sortedFlowers.length <= 20 ? 14 : 11.5;
+  const minDistance = sortedFlowers.length <= 16 ? 12.5 : 10.5;
 
   sortedFlowers.forEach((flower) => {
     const hash = getFlowerHash(flower.id);
-    let chosen = { x: 50, y: 50 };
-    let bestCandidate = chosen;
+    let chosen: { x: number; y: number } | null = null;
+    let bestCandidate = { x: 50, y: 48 };
     let bestDistance = -1;
 
-    for (let attempt = 0; attempt < 300; attempt += 1) {
+    for (let attempt = 0; attempt < 500; attempt += 1) {
       const seed = hash + attempt * 2654435761;
-      const x = 4 + seededValue(seed) * 92;
-      const y = 4 + seededValue(seed ^ 0x9e3779b9) * 92;
+      const x = 15 + seededValue(seed) * 70;
+      const y = 14 + seededValue(seed ^ 0x9e3779b9) * 68;
 
       if (!isInsideGarden(x, y)) continue;
 
@@ -89,11 +89,7 @@ function getFlowerPositions(flowers: Flower[]) {
       }
     }
 
-    if (chosen.x === 50 && chosen.y === 50 && positions.size > 0) {
-      chosen = bestCandidate;
-    }
-
-    positions.set(flower.id, chosen);
+    positions.set(flower.id, chosen ?? bestCandidate);
   });
 
   return positions;
