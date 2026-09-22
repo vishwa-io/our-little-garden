@@ -11,9 +11,10 @@ const MAX_VISIBLE_FLOWERS = 20;
 // The usable planting area is the circular top of the garden.
 // Flowers get an inner safety margin so their full buttons stay on the grass.
 const GARDEN_CENTER = { x: 50, y: 48 };
-const GARDEN_RADIUS = 38;
-const FLOWER_SAFE_RADIUS = 5.5;
-const FLOWER_MIN_DISTANCE = 8.5;
+const GARDEN_RADIUS = 39;
+const FLOWER_SAFE_RADIUS = 4;
+const FLOWER_MIN_DISTANCE = 7;
+
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -62,7 +63,7 @@ function getRefreshSeed() {
   return values[0] || Math.floor(Math.random() * 4294967295) || 1;
 }
 
-function getRandomDiskPoint(seed: number) {
+function getRandomGardenPoint(seed: number) {
   const angle = seededValue(seed) * Math.PI * 2;
   const radius = Math.sqrt(seededValue(seed ^ 0x68bc21eb)) *
     (GARDEN_RADIUS - FLOWER_SAFE_RADIUS);
@@ -74,8 +75,6 @@ function getRandomDiskPoint(seed: number) {
 }
 
 function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
-  // Pick which flowers are visible independently from where they are placed.
-  // This makes the garden change naturally after there are more than 20 flowers.
   const visibleFlowers = flowers
     .slice()
     .sort(
@@ -85,56 +84,107 @@ function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
     )
     .slice(0, MAX_VISIBLE_FLOWERS);
 
-  // Generate the positions first. We never use a "best fallback" point,
-  // because that was what was pushing later flowers into a ring.
+  // Build a large pool of genuinely random points across the whole garden.
+  // Then choose points that are far apart, while softly preferring the
+  // middle so the flowers do not accidentally form a perimeter.
+  const candidates: Array<{ x: number; y: number; scoreSeed: number }> = [];
+
+  for (let index = 0; index < 1200; index += 1) {
+    const point = getRandomGardenPoint(
+      refreshSeed + index * 0x9e3779b9,
+    );
+    candidates.push({
+      ...point,
+      scoreSeed: refreshSeed + index * 0x85ebca6b,
+    });
+  }
+
   const positions: Array<{ x: number; y: number }> = [];
 
-  for (let index = 0; index < visibleFlowers.length; index += 1) {
-    let chosen: { x: number; y: number } | null = null;
+  // Start from a random interior point.
+  const firstIndex = Math.floor(
+    seededValue(refreshSeed ^ 0x1234567) * candidates.length,
+  );
+  positions.push({
+    x: candidates[firstIndex].x,
+    y: candidates[firstIndex].y,
+  });
 
-    for (let attempt = 0; attempt < 30000; attempt += 1) {
-      const candidate = getRandomDiskPoint(
-        refreshSeed + index * 0x9e3779b9 + attempt * 0x85ebca6b,
-      );
+  while (positions.length < visibleFlowers.length) {
+    let bestIndex = -1;
+    let bestScore = -Infinity;
 
-      if (!isInsideGarden(candidate.x, candidate.y)) continue;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index];
 
-      const hasEnoughSpace = positions.every((position) => {
-        const distance = Math.hypot(
-          position.x - candidate.x,
-          position.y - candidate.y,
+      let nearestDistance = Infinity;
+      for (const position of positions) {
+        nearestDistance = Math.min(
+          nearestDistance,
+          Math.hypot(position.x - candidate.x, position.y - candidate.y),
         );
-        return distance >= FLOWER_MIN_DISTANCE;
-      });
+      }
 
-      if (hasEnoughSpace) {
-        chosen = candidate;
-        break;
+      // Prefer open space, but penalize points close to the circular edge.
+      // This keeps the composition organic instead of creating a ring.
+      const centerDistance = Math.hypot(
+        candidate.x - GARDEN_CENTER.x,
+        candidate.y - GARDEN_CENTER.y,
+      );
+      const edgePenalty = centerDistance / GARDEN_RADIUS;
+      const randomJitter = seededValue(candidate.scoreSeed) * 1.5;
+      const score = nearestDistance - edgePenalty * 3 + randomJitter;
+
+      if (
+        nearestDistance >= FLOWER_MIN_DISTANCE &&
+        score > bestScore
+      ) {
+        bestScore = score;
+        bestIndex = index;
       }
     }
 
-    // If the circle becomes too crowded, relax the gap for this one flower
-    // instead of forcing it to the outer edge.
-    if (!chosen) {
-      for (let attempt = 0; attempt < 30000; attempt += 1) {
-        const candidate = getRandomDiskPoint(
-          refreshSeed + 0x1234567 + index * 0x9e3779b9 + attempt * 0x85ebca6b,
+    // If the minimum gap becomes impossible, choose the best remaining
+    // random point instead of pushing flowers toward the edge.
+    if (bestIndex === -1) {
+      let fallbackIndex = -1;
+      let fallbackScore = -Infinity;
+
+      for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index];
+        let nearestDistance = Infinity;
+
+        for (const position of positions) {
+          nearestDistance = Math.min(
+            nearestDistance,
+            Math.hypot(position.x - candidate.x, position.y - candidate.y),
+          );
+        }
+
+        const centerDistance = Math.hypot(
+          candidate.x - GARDEN_CENTER.x,
+          candidate.y - GARDEN_CENTER.y,
         );
+        const score =
+          nearestDistance -
+          (centerDistance / GARDEN_RADIUS) * 3 +
+          seededValue(candidate.scoreSeed) * 1.5;
 
-        if (!isInsideGarden(candidate.x, candidate.y)) continue;
-
-        const hasEnoughSpace = positions.every((position) =>
-          Math.hypot(position.x - candidate.x, position.y - candidate.y) >= 7,
-        );
-
-        if (hasEnoughSpace) {
-          chosen = candidate;
-          break;
+        if (score > fallbackScore) {
+          fallbackScore = score;
+          fallbackIndex = index;
         }
       }
+
+      if (fallbackIndex === -1) break;
+      bestIndex = fallbackIndex;
     }
 
-    if (chosen) positions.push(chosen);
+    positions.push({
+      x: candidates[bestIndex].x,
+      y: candidates[bestIndex].y,
+    });
+    candidates.splice(bestIndex, 1);
   }
 
   const result = new Map<string, { x: number; y: number }>();
