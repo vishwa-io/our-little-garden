@@ -72,7 +72,14 @@ function getRandomGardenPoint() {
 function isInsideGarden(point: { x: number; y: number }) {
   const dx = point.x - 50;
   const dy = point.y - 48;
-  return Math.hypot(dx, dy) <= 38 - FLOWER_EDGE_MARGIN;
+  const safeRadius = 38 - FLOWER_EDGE_MARGIN;
+
+  // The PNG has a thick dark-green side underneath the grassy top.
+  // Keep the flower center above that lower rim so the flower artwork
+  // itself cannot hang onto the side/background.
+  if (point.y > 73) return false;
+
+  return Math.hypot(dx, dy) <= safeRadius;
 }
 
 function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
