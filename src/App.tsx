@@ -308,7 +308,7 @@ function App() {
     <main className="garden-page">
       <header className="garden-header">
         <div className="brand">
-          <h1 data-testid="text-brand">OUR LITTLE GARDEN</h1>
+          <h1 data-testid="text-brand">LITTLE GARDEN</h1>
           <p data-testid="text-tagline">leave something lovely behind.</p>
         </div>
         <div className="plant-count" aria-live="polite" data-testid="text-plant-count">
