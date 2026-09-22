@@ -275,7 +275,7 @@ function App() {
     setIsPlanting(true);
   }
 
-  function plantFlower(event: FormEvent<HTMLFormElement>) {
+  async function plantFlower(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim() || !hasDrawing || !drawingPreview) return;
 
