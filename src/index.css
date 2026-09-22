@@ -103,6 +103,8 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
   max-width: 670px;
   position: relative;
   width: 100%;
+  animation: garden-float 4s ease-in-out infinite;
+  will-change: transform;
 }
 
 .garden-art {
@@ -146,20 +148,6 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 
 .planted-flower:hover, .planted-flower:focus-visible {
   transform: translate(-50%, -50%) scale(1.13) rotate(-4deg);
-}
-
-.planted-flower {
-  animation: flower-float 4s ease-in-out infinite;
-}
-
-@keyframes flower-float {
-  0%, 100% {
-    margin-top: 0;
-  }
-
-  50% {
-    margin-top: -5px;
-  }
 }
 
 .planted-flower img { height: 100%; object-fit: contain; width: 100%; }
