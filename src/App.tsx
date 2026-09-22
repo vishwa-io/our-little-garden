@@ -24,8 +24,6 @@ type Flower = {
   drawingCropped?: boolean;
 };
 
-const FLOWER_MIN_DISTANCE = 8.5;
-
 function getFlowerHash(id: string) {
   let hash = 2166136261;
 
@@ -46,9 +44,9 @@ function seededValue(seed: number) {
 }
 
 function isInsideGarden(x: number, y: number) {
-  const horizontal = (x - 50) / 43;
-  const vertical = (y - 47) / 38;
-  return horizontal * horizontal + vertical * vertical <= 0.88;
+  const horizontal = (x - 50) / 46;
+  const vertical = (y - 50) / 44;
+  return horizontal * horizontal + vertical * vertical <= 0.9;
 }
 
 function getFlowerPositions(flowers: Flower[]) {
@@ -58,28 +56,41 @@ function getFlowerPositions(flowers: Flower[]) {
     .slice(0, MAX_VISIBLE_FLOWERS);
 
   const positions = new Map<string, { x: number; y: number }>();
+  const minDistance = sortedFlowers.length <= 20 ? 14 : 11.5;
 
   sortedFlowers.forEach((flower) => {
     const hash = getFlowerHash(flower.id);
-    let chosen = { x: 50, y: 47 };
+    let chosen = { x: 50, y: 50 };
+    let bestCandidate = chosen;
+    let bestDistance = -1;
 
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
       const seed = hash + attempt * 2654435761;
-      const x = 9 + seededValue(seed) * 82;
-      const y = 11 + seededValue(seed ^ 0x9e3779b9) * 72;
+      const x = 4 + seededValue(seed) * 92;
+      const y = 4 + seededValue(seed ^ 0x9e3779b9) * 92;
 
       if (!isInsideGarden(x, y)) continue;
 
-      const hasNearbyFlower = Array.from(positions.values()).some((position) => {
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const position of positions.values()) {
         const dx = position.x - x;
         const dy = position.y - y;
-        return Math.sqrt(dx * dx + dy * dy) < FLOWER_MIN_DISTANCE;
-      });
+        nearestDistance = Math.min(nearestDistance, Math.sqrt(dx * dx + dy * dy));
+      }
 
-      if (!hasNearbyFlower) {
+      if (positions.size === 0 || nearestDistance >= minDistance) {
         chosen = { x, y };
         break;
       }
+
+      if (nearestDistance > bestDistance) {
+        bestDistance = nearestDistance;
+        bestCandidate = { x, y };
+      }
+    }
+
+    if (chosen.x === 50 && chosen.y === 50 && positions.size > 0) {
+      chosen = bestCandidate;
     }
 
     positions.set(flower.id, chosen);
