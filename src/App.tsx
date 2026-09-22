@@ -1,4 +1,5 @@
 import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -245,6 +246,10 @@ function App() {
   const [selectedFlower, setSelectedFlower] = useState<Flower | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [refreshSeed] = useState(getRefreshSeed);
+  const flowerPositions = useMemo(
+    () => getFlowerPositions(flowers, refreshSeed),
+    [flowers, refreshSeed],
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -438,7 +443,7 @@ function App() {
               data-testid="img-garden"
             />
             <div className="planted-flowers" aria-label="Planted flowers">
-              {Array.from(getFlowerPositions(flowers, refreshSeed).entries()).map(([flowerId, position]) => {
+              {Array.from(flowerPositions.entries()).map(([flowerId, position]) => {
                 const flower = flowers.find((item) => item.id === flowerId);
                 if (!flower) return null;
 
