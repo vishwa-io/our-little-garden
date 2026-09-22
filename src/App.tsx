@@ -10,10 +10,6 @@ const MAX_VISIBLE_FLOWERS = 20;
 
 // The usable planting area is the circular top of the garden.
 // Flowers get an inner safety margin so their full buttons stay on the grass.
-const MAX_VISIBLE_FLOWERS = 20;
-const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const FLOWER_MIN_DISTANCE = 7;
-const FLOWER_EDGE_MARGIN = 4;
 
 
 const COLORS = [
