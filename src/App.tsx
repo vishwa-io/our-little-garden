@@ -72,7 +72,7 @@ function getRandomGardenPoint() {
 function isInsideGarden(point: { x: number; y: number }) {
   const dx = point.x - 50;
   const dy = point.y - 48;
-  return Math.hypot(dx, dy) <= 38;
+  return Math.hypot(dx, dy) <= 38 - FLOWER_EDGE_MARGIN;
 }
 
 function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
