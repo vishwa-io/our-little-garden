@@ -114,11 +114,11 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
 }
 
 .planted-flowers {
-  height: 77%;
+  height: 88%;
   left: 4%;
   pointer-events: none;
   position: absolute;
-  top: 3%;
+  top: 4%;
   width: 92%;
   z-index: 2;
 }
