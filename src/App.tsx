@@ -1,6 +1,7 @@
 import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
 import { useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { Analytics } from '@vercel/analytics/react';
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -580,6 +581,7 @@ function App() {
           </section>
         </div>
       )}
+      <Analytics />
     </main>
   );
 }
