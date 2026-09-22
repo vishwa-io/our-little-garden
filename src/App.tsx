@@ -7,6 +7,7 @@ const supabase = createClient(
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
 const MAX_VISIBLE_FLOWERS = 20;
+const FLOWER_EDGE_MARGIN = 6.5;
 
 // The usable planting area is the circular top of the garden.
 // Flowers get an inner safety margin so their full buttons stay on the grass.
