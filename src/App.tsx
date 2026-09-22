@@ -10,10 +10,10 @@ const MAX_VISIBLE_FLOWERS = 20;
 
 // The usable planting area is the circular top of the garden.
 // Flowers get an inner safety margin so their full buttons stay on the grass.
-const GARDEN_CENTER = { x: 50, y: 48 };
-const GARDEN_RADIUS = 39;
-const FLOWER_SAFE_RADIUS = 4;
+const MAX_VISIBLE_FLOWERS = 20;
+const GARDEN_IMAGE = '/assets/garden-artwork.png';
 const FLOWER_MIN_DISTANCE = 7;
+const FLOWER_EDGE_MARGIN = 4;
 
 
 const COLORS = [
@@ -51,10 +51,98 @@ function seededValue(seed: number) {
   return (value >>> 0) / 4294967296;
 }
 
-function isInsideGarden(x: number, y: number) {
-  const dx = x - GARDEN_CENTER.x;
-  const dy = y - GARDEN_CENTER.y;
-  return Math.hypot(dx, dy) <= GARDEN_RADIUS - FLOWER_SAFE_RADIUS;
+type GardenMask = {
+  size: number;
+  pixels: Uint8Array;
+};
+
+function buildGardenMask(image: HTMLImageElement): GardenMask {
+  const size = 240;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return { size, pixels: new Uint8Array(size * size) };
+
+  context.drawImage(image, 0, 0, size, size);
+  const imageData = context.getImageData(0, 0, size, size);
+  const pixels = new Uint8Array(size * size);
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const offset = (y * size + x) * 4;
+      const r = imageData.data[offset];
+      const g = imageData.data[offset + 1];
+      const b = imageData.data[offset + 2];
+      const a = imageData.data[offset + 3];
+
+      const brightness = (r + g + b) / 3;
+      const isGreenSurface =
+        a > 20 &&
+        g > r * 1.06 &&
+        g > b * 1.15 &&
+        brightness > 92;
+
+      pixels[y * size + x] = isGreenSurface ? 1 : 0;
+    }
+  }
+
+  return { size, pixels };
+}
+
+function maskAllowsPoint(mask: GardenMask, x: number, y: number) {
+  const px = Math.round((x / 100) * (mask.size - 1));
+  const py = Math.round((y / 100) * (mask.size - 1));
+
+  if (px < 0 || py < 0 || px >= mask.size || py >= mask.size) return false;
+
+  // Check a small neighborhood so tiny artwork details do not make
+  // otherwise usable grass impossible to plant on.
+  let valid = 0;
+  let checked = 0;
+
+  for (let offsetY = -2; offsetY <= 2; offsetY += 1) {
+    for (let offsetX = -2; offsetX <= 2; offsetX += 1) {
+      const sampleX = px + offsetX;
+      const sampleY = py + offsetY;
+      if (
+        sampleX >= 0 &&
+        sampleY >= 0 &&
+        sampleX < mask.size &&
+        sampleY < mask.size
+      ) {
+        checked += 1;
+        valid += mask.pixels[sampleY * mask.size + sampleX];
+      }
+    }
+  }
+
+  return valid / checked >= 0.45;
+}
+
+function flowerFitsOnGarden(mask: GardenMask, x: number, y: number) {
+  // Check the center plus points around the flower's footprint.
+  // This keeps the actual flower inside the circular grass surface.
+  const radius = FLOWER_EDGE_MARGIN;
+  const samples = 16;
+
+  if (!maskAllowsPoint(mask, x, y)) return false;
+
+  for (let index = 0; index < samples; index += 1) {
+    const angle = (index / samples) * Math.PI * 2;
+    if (
+      !maskAllowsPoint(
+        mask,
+        x + Math.cos(angle) * radius,
+        y + Math.sin(angle) * radius,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function getRefreshSeed() {
@@ -65,17 +153,25 @@ function getRefreshSeed() {
 
 function getRandomGardenPoint(seed: number) {
   const angle = seededValue(seed) * Math.PI * 2;
-  const radius = Math.sqrt(seededValue(seed ^ 0x68bc21eb)) *
-    (GARDEN_RADIUS - FLOWER_SAFE_RADIUS);
+
+  // A gentle center bias prevents uniform-disk sampling from visually
+  // concentrating too many flowers around the outside edge.
+  const rawRadius = seededValue(seed ^ 0x68bc21eb);
+  const radius = Math.pow(rawRadius, 0.68) * 46;
 
   return {
-    x: GARDEN_CENTER.x + Math.cos(angle) * radius,
-    y: GARDEN_CENTER.y + Math.sin(angle) * radius,
+    x: 50 + Math.cos(angle) * radius,
+    y: 48 + Math.sin(angle) * radius,
   };
 }
 
-function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
-  // Randomly choose which flowers are visible when the garden has more than 20.
+function getFlowerPositions(
+  flowers: Flower[],
+  refreshSeed: number,
+  gardenMask: GardenMask | null,
+) {
+  if (!gardenMask) return new Map<string, { x: number; y: number }>();
+
   const visibleFlowers = flowers
     .slice()
     .sort(
@@ -88,61 +184,35 @@ function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
   const positions = new Map<string, { x: number; y: number }>();
   const placed: Array<{ x: number; y: number }> = [];
 
-  // IMPORTANT: this is deliberately random sequential placement.
-  // We do NOT choose the "farthest" point, score candidates, arrange
-  // points around the edge, or use a grid. Those approaches create rings.
-  visibleFlowers.forEach((flower, flowerIndex) => {
-    const minimumGap = 7;
+  for (let index = 0; index < visibleFlowers.length; index += 1) {
     let chosen: { x: number; y: number } | null = null;
 
-    for (let attempt = 0; attempt < 12000; attempt += 1) {
+    for (let attempt = 0; attempt < 20000; attempt += 1) {
       const candidate = getRandomGardenPoint(
         refreshSeed +
-          flowerIndex * 0x9e3779b9 +
+          index * 0x9e3779b9 +
           attempt * 0x85ebca6b,
       );
 
-      const hasRoom = placed.every(
+      if (!flowerFitsOnGarden(gardenMask, candidate.x, candidate.y)) continue;
+
+      const separated = placed.every(
         (position) =>
           Math.hypot(position.x - candidate.x, position.y - candidate.y) >=
-          minimumGap,
+          FLOWER_MIN_DISTANCE,
       );
 
-      if (hasRoom) {
-        chosen = candidate;
-        break;
-      }
-    }
+      if (!separated) continue;
 
-    // The circle has plenty of room for 20 flowers. This fallback only
-    // prevents a missing flower if the random search happens to fail.
-    if (!chosen) {
-      for (let attempt = 0; attempt < 12000; attempt += 1) {
-        const candidate = getRandomGardenPoint(
-          refreshSeed +
-            0xabcdef +
-            flowerIndex * 0x9e3779b9 +
-            attempt * 0x85ebca6b,
-        );
-
-        const hasRoom = placed.every(
-          (position) =>
-            Math.hypot(position.x - candidate.x, position.y - candidate.y) >=
-            5.5,
-        );
-
-        if (hasRoom) {
-          chosen = candidate;
-          break;
-        }
-      }
+      chosen = candidate;
+      break;
     }
 
     if (chosen) {
       placed.push(chosen);
-      positions.set(flower.id, chosen);
+      positions.set(visibleFlowers[index].id, chosen);
     }
-  });
+  }
 
   return positions;
 }
@@ -234,6 +304,13 @@ function App() {
   const [selectedFlower, setSelectedFlower] = useState<Flower | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [refreshSeed] = useState(getRefreshSeed);
+  const [gardenMask, setGardenMask] = useState<GardenMask | null>(null);
+
+  useEffect(() => {
+    const image = new Image();
+    image.onload = () => setGardenMask(buildGardenMask(image));
+    image.src = GARDEN_IMAGE;
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -427,7 +504,7 @@ function App() {
               data-testid="img-garden"
             />
             <div className="planted-flowers" aria-label="Planted flowers">
-              {Array.from(getFlowerPositions(flowers, refreshSeed).entries()).map(([flowerId, position]) => {
+              {Array.from(getFlowerPositions(flowers, refreshSeed, gardenMask).entries()).map(([flowerId, position]) => {
                 const flower = flowers.find((item) => item.id === flowerId);
                 if (!flower) return null;
 
