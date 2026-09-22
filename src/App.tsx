@@ -75,6 +75,7 @@ function getRandomGardenPoint(seed: number) {
 }
 
 function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
+  // Randomly choose which flowers are visible when the garden has more than 20.
   const visibleFlowers = flowers
     .slice()
     .sort(
@@ -84,116 +85,66 @@ function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
     )
     .slice(0, MAX_VISIBLE_FLOWERS);
 
-  // Build a large pool of genuinely random points across the whole garden.
-  // Then choose points that are far apart, while softly preferring the
-  // middle so the flowers do not accidentally form a perimeter.
-  const candidates: Array<{ x: number; y: number; scoreSeed: number }> = [];
+  const positions = new Map<string, { x: number; y: number }>();
+  const placed: Array<{ x: number; y: number }> = [];
 
-  for (let index = 0; index < 1200; index += 1) {
-    const point = getRandomGardenPoint(
-      refreshSeed + index * 0x9e3779b9,
-    );
-    candidates.push({
-      ...point,
-      scoreSeed: refreshSeed + index * 0x85ebca6b,
-    });
-  }
+  // IMPORTANT: this is deliberately random sequential placement.
+  // We do NOT choose the "farthest" point, score candidates, arrange
+  // points around the edge, or use a grid. Those approaches create rings.
+  visibleFlowers.forEach((flower, flowerIndex) => {
+    const minimumGap = 7;
+    let chosen: { x: number; y: number } | null = null;
 
-  const positions: Array<{ x: number; y: number }> = [];
-
-  // Start from a random interior point.
-  const firstIndex = Math.floor(
-    seededValue(refreshSeed ^ 0x1234567) * candidates.length,
-  );
-  positions.push({
-    x: candidates[firstIndex].x,
-    y: candidates[firstIndex].y,
-  });
-
-  while (positions.length < visibleFlowers.length) {
-    let bestIndex = -1;
-    let bestScore = -Infinity;
-
-    for (let index = 0; index < candidates.length; index += 1) {
-      const candidate = candidates[index];
-
-      let nearestDistance = Infinity;
-      for (const position of positions) {
-        nearestDistance = Math.min(
-          nearestDistance,
-          Math.hypot(position.x - candidate.x, position.y - candidate.y),
-        );
-      }
-
-      // Prefer open space, but penalize points close to the circular edge.
-      // This keeps the composition organic instead of creating a ring.
-      const centerDistance = Math.hypot(
-        candidate.x - GARDEN_CENTER.x,
-        candidate.y - GARDEN_CENTER.y,
+    for (let attempt = 0; attempt < 12000; attempt += 1) {
+      const candidate = getRandomGardenPoint(
+        refreshSeed +
+          flowerIndex * 0x9e3779b9 +
+          attempt * 0x85ebca6b,
       );
-      const edgePenalty = centerDistance / GARDEN_RADIUS;
-      const randomJitter = seededValue(candidate.scoreSeed) * 1.5;
-      const score = nearestDistance - edgePenalty * 3 + randomJitter;
 
-      if (
-        nearestDistance >= FLOWER_MIN_DISTANCE &&
-        score > bestScore
-      ) {
-        bestScore = score;
-        bestIndex = index;
+      const hasRoom = placed.every(
+        (position) =>
+          Math.hypot(position.x - candidate.x, position.y - candidate.y) >=
+          minimumGap,
+      );
+
+      if (hasRoom) {
+        chosen = candidate;
+        break;
       }
     }
 
-    // If the minimum gap becomes impossible, choose the best remaining
-    // random point instead of pushing flowers toward the edge.
-    if (bestIndex === -1) {
-      let fallbackIndex = -1;
-      let fallbackScore = -Infinity;
-
-      for (let index = 0; index < candidates.length; index += 1) {
-        const candidate = candidates[index];
-        let nearestDistance = Infinity;
-
-        for (const position of positions) {
-          nearestDistance = Math.min(
-            nearestDistance,
-            Math.hypot(position.x - candidate.x, position.y - candidate.y),
-          );
-        }
-
-        const centerDistance = Math.hypot(
-          candidate.x - GARDEN_CENTER.x,
-          candidate.y - GARDEN_CENTER.y,
+    // The circle has plenty of room for 20 flowers. This fallback only
+    // prevents a missing flower if the random search happens to fail.
+    if (!chosen) {
+      for (let attempt = 0; attempt < 12000; attempt += 1) {
+        const candidate = getRandomGardenPoint(
+          refreshSeed +
+            0xabcdef +
+            flowerIndex * 0x9e3779b9 +
+            attempt * 0x85ebca6b,
         );
-        const score =
-          nearestDistance -
-          (centerDistance / GARDEN_RADIUS) * 3 +
-          seededValue(candidate.scoreSeed) * 1.5;
 
-        if (score > fallbackScore) {
-          fallbackScore = score;
-          fallbackIndex = index;
+        const hasRoom = placed.every(
+          (position) =>
+            Math.hypot(position.x - candidate.x, position.y - candidate.y) >=
+            5.5,
+        );
+
+        if (hasRoom) {
+          chosen = candidate;
+          break;
         }
       }
-
-      if (fallbackIndex === -1) break;
-      bestIndex = fallbackIndex;
     }
 
-    positions.push({
-      x: candidates[bestIndex].x,
-      y: candidates[bestIndex].y,
-    });
-    candidates.splice(bestIndex, 1);
-  }
-
-  const result = new Map<string, { x: number; y: number }>();
-  visibleFlowers.forEach((flower, index) => {
-    const position = positions[index];
-    if (position) result.set(flower.id, position);
+    if (chosen) {
+      placed.push(chosen);
+      positions.set(flower.id, chosen);
+    }
   });
 
-  return result;
+  return positions;
 }
 
 function toFlower(row: { id: string; message: string; color: string; drawing: string }): Flower {
