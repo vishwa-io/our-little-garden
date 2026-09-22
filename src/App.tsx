@@ -60,21 +60,21 @@ function randomUnit() {
 }
 
 function getRandomGardenPoint() {
-  // Uniformly sample the ENTIRE circular top surface.
-  // sqrt() is important: without it, random points bunch toward the center.
+  // Use a larger, slightly higher circle so flowers can use much more
+  // of the visible grassy top instead of clustering in the middle.
   const angle = randomUnit() * Math.PI * 2;
-  const radius = Math.sqrt(randomUnit()) * 42;
+  const radius = Math.sqrt(randomUnit()) * 40;
 
   return {
     x: 50 + Math.cos(angle) * radius,
-    y: 48 + Math.sin(angle) * radius,
+    y: 45 + Math.sin(angle) * radius,
   };
 }
 
 function isInsideGarden(point: { x: number; y: number }) {
   const dx = point.x - 50;
-  const dy = point.y - 48;
-  const safeRadius = 38 - FLOWER_EDGE_MARGIN;
+  const dy = point.y - 45;
+  const safeRadius = 44.5 - FLOWER_EDGE_MARGIN;
 
   // The PNG has a thick dark-green side underneath the grassy top.
   // Keep the flower center above that lower rim so the flower artwork
