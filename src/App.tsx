@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const MAX_VISIBLE_FLOWERS = 30; // keep the garden visually calm while preserving every flower in the gallery
+const MAX_VISIBLE_FLOWERS = 20;
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -22,11 +22,16 @@ type Flower = {
   color: string;
   drawing: string;
   drawingCropped?: boolean;
-  x: number;
-  y: number;
 };
 
-function getFlowerPosition(id: string) {
+const FLOWER_SLOTS = [
+  { x: 20, y: 20 }, { x: 35, y: 20 }, { x: 50, y: 20 }, { x: 65, y: 20 }, { x: 80, y: 20 },
+  { x: 20, y: 40 }, { x: 35, y: 40 }, { x: 50, y: 40 }, { x: 65, y: 40 }, { x: 80, y: 40 },
+  { x: 20, y: 60 }, { x: 35, y: 60 }, { x: 50, y: 60 }, { x: 65, y: 60 }, { x: 80, y: 60 },
+  { x: 20, y: 80 }, { x: 35, y: 80 }, { x: 50, y: 80 }, { x: 65, y: 80 }, { x: 80, y: 80 },
+];
+
+function getFlowerHash(id: string) {
   let hash = 2166136261;
 
   for (let index = 0; index < id.length; index += 1) {
@@ -34,13 +39,18 @@ function getFlowerPosition(id: string) {
     hash = Math.imul(hash, 16777619);
   }
 
-  const normalizedX = ((hash >>> 0) % 6200) / 100;
-  const normalizedY = (((hash >>> 8) >>> 0) % 5600) / 100;
+  return hash >>> 0;
+}
 
-  return {
-    x: 19 + normalizedX,
-    y: 19 + normalizedY,
-  };
+function getFlowerPositions(flowers: Flower[]) {
+  const sortedFlowers = flowers
+    .slice()
+    .sort((first, second) => getFlowerHash(first.id) - getFlowerHash(second.id))
+    .slice(0, MAX_VISIBLE_FLOWERS);
+
+  return new Map(
+    sortedFlowers.map((flower, index) => [flower.id, FLOWER_SLOTS[index]]),
+  );
 }
 
 function toFlower(row: { id: string; message: string; color: string; drawing: string }): Flower {
@@ -326,22 +336,23 @@ function App() {
               data-testid="img-garden"
             />
             <div className="planted-flowers" aria-label="Planted flowers">
-              {flowers
-                .slice()
-                .sort((first, second) => getFlowerPosition(first.id).x - getFlowerPosition(second.id).x)
-                .slice(0, MAX_VISIBLE_FLOWERS)
-                .map((flower) => (
-                <button
-                  className="planted-flower"
-                  key={flower.id}
-                  style={{ left: `${flower.x}%`, top: `${flower.y}%` }}
-                  onClick={() => setSelectedFlower(flower)}
-                  aria-label={`Read flower message: ${flower.message}`}
-                  data-testid={`button-planted-flower-${flower.id}`}
-                >
-                  <img src={flower.drawing} alt="" data-testid={`img-planted-flower-${flower.id}`} />
-                </button>
-              ))}
+              {Array.from(getFlowerPositions(flowers).entries()).map(([flowerId, position]) => {
+                const flower = flowers.find((item) => item.id === flowerId);
+                if (!flower) return null;
+
+                return (
+                  <button
+                    className="planted-flower"
+                    key={flower.id}
+                    style={{ left: `${position.x}%`, top: `${position.y}%` }}
+                    onClick={() => setSelectedFlower(flower)}
+                    aria-label={`Read flower message: ${flower.message}`}
+                    data-testid={`button-planted-flower-${flower.id}`}
+                  >
+                    <img src={flower.drawing} alt="" data-testid={`img-planted-flower-${flower.id}`} />
+                  </button>
+                );
+              })}
             </div>
           </div>
           <p className="garden-note" data-testid="text-garden-note">click a flower to read its little note</p>
