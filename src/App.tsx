@@ -7,10 +7,13 @@ const supabase = createClient(
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
 const MAX_VISIBLE_FLOWERS = 20;
+
+// The usable planting area is the circular top of the garden.
+// Flowers get an inner safety margin so their full buttons stay on the grass.
 const GARDEN_CENTER = { x: 50, y: 48 };
-const GARDEN_RADIUS = 42;
-const FLOWER_SAFE_RADIUS = 6.5;
-const FLOWER_MIN_DISTANCE = 11.5;
+const GARDEN_RADIUS = 38;
+const FLOWER_SAFE_RADIUS = 5.5;
+const FLOWER_MIN_DISTANCE = 8.5;
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -50,8 +53,7 @@ function seededValue(seed: number) {
 function isInsideGarden(x: number, y: number) {
   const dx = x - GARDEN_CENTER.x;
   const dy = y - GARDEN_CENTER.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  return distance <= GARDEN_RADIUS - FLOWER_SAFE_RADIUS;
+  return Math.hypot(dx, dy) <= GARDEN_RADIUS - FLOWER_SAFE_RADIUS;
 }
 
 function getRefreshSeed() {
@@ -60,60 +62,88 @@ function getRefreshSeed() {
   return values[0] || Math.floor(Math.random() * 4294967295) || 1;
 }
 
+function getRandomDiskPoint(seed: number) {
+  const angle = seededValue(seed) * Math.PI * 2;
+  const radius = Math.sqrt(seededValue(seed ^ 0x68bc21eb)) *
+    (GARDEN_RADIUS - FLOWER_SAFE_RADIUS);
+
+  return {
+    x: GARDEN_CENTER.x + Math.cos(angle) * radius,
+    y: GARDEN_CENTER.y + Math.sin(angle) * radius,
+  };
+}
+
 function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
+  // Pick which flowers are visible independently from where they are placed.
+  // This makes the garden change naturally after there are more than 20 flowers.
   const visibleFlowers = flowers
     .slice()
     .sort(
       (first, second) =>
-        getFlowerHash(`${refreshSeed}:${first.id}`) -
-        getFlowerHash(`${refreshSeed}:${second.id}`),
+        getFlowerHash(`${refreshSeed}:flower:${first.id}`) -
+        getFlowerHash(`${refreshSeed}:flower:${second.id}`),
     )
     .slice(0, MAX_VISIBLE_FLOWERS);
 
-  const positions = new Map<string, { x: number; y: number }>();
-  const candidates: Array<{ x: number; y: number }> = [];
+  // Generate the positions first. We never use a "best fallback" point,
+  // because that was what was pushing later flowers into a ring.
+  const positions: Array<{ x: number; y: number }> = [];
 
   for (let index = 0; index < visibleFlowers.length; index += 1) {
     let chosen: { x: number; y: number } | null = null;
-    let bestCandidate = { x: GARDEN_CENTER.x, y: GARDEN_CENTER.y };
-    let bestDistance = -1;
 
-    for (let attempt = 0; attempt < 6000; attempt += 1) {
-      const seed = refreshSeed + index * 0x9e3779b9 + attempt * 0x85ebca6b;
-      const angle = seededValue(seed) * Math.PI * 2;
-      const radius = Math.sqrt(seededValue(seed ^ 0x68bc21eb)) *
-        (GARDEN_RADIUS - FLOWER_SAFE_RADIUS);
-      const x = GARDEN_CENTER.x + Math.cos(angle) * radius;
-      const y = GARDEN_CENTER.y + Math.sin(angle) * radius;
+    for (let attempt = 0; attempt < 30000; attempt += 1) {
+      const candidate = getRandomDiskPoint(
+        refreshSeed + index * 0x9e3779b9 + attempt * 0x85ebca6b,
+      );
 
-      if (!isInsideGarden(x, y)) continue;
+      if (!isInsideGarden(candidate.x, candidate.y)) continue;
 
-      let nearestDistance = Number.POSITIVE_INFINITY;
-      for (const position of candidates) {
-        const dx = position.x - x;
-        const dy = position.y - y;
-        nearestDistance = Math.min(nearestDistance, Math.sqrt(dx * dx + dy * dy));
-      }
+      const hasEnoughSpace = positions.every((position) => {
+        const distance = Math.hypot(
+          position.x - candidate.x,
+          position.y - candidate.y,
+        );
+        return distance >= FLOWER_MIN_DISTANCE;
+      });
 
-      if (nearestDistance > bestDistance) {
-        bestDistance = nearestDistance;
-        bestCandidate = { x, y };
-      }
-
-      if (candidates.length === 0 || nearestDistance >= FLOWER_MIN_DISTANCE) {
-        chosen = { x, y };
+      if (hasEnoughSpace) {
+        chosen = candidate;
         break;
       }
     }
 
-    candidates.push(chosen ?? bestCandidate);
+    // If the circle becomes too crowded, relax the gap for this one flower
+    // instead of forcing it to the outer edge.
+    if (!chosen) {
+      for (let attempt = 0; attempt < 30000; attempt += 1) {
+        const candidate = getRandomDiskPoint(
+          refreshSeed + 0x1234567 + index * 0x9e3779b9 + attempt * 0x85ebca6b,
+        );
+
+        if (!isInsideGarden(candidate.x, candidate.y)) continue;
+
+        const hasEnoughSpace = positions.every((position) =>
+          Math.hypot(position.x - candidate.x, position.y - candidate.y) >= 7,
+        );
+
+        if (hasEnoughSpace) {
+          chosen = candidate;
+          break;
+        }
+      }
+    }
+
+    if (chosen) positions.push(chosen);
   }
 
+  const result = new Map<string, { x: number; y: number }>();
   visibleFlowers.forEach((flower, index) => {
-    positions.set(flower.id, candidates[index]);
+    const position = positions[index];
+    if (position) result.set(flower.id, position);
   });
 
-  return positions;
+  return result;
 }
 
 function toFlower(row: { id: string; message: string; color: string; drawing: string }): Flower {
