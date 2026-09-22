@@ -19,6 +19,7 @@ const COLORS = [
   { name: 'sunshine', value: '#f5a354' },
   { name: 'lemon', value: '#f2d56d' },
   { name: 'pink', value: '#e38ca8' },
+  { name: 'lavender', value: '#b8a0e8' },
   { name: 'leaf', value: '#5c9c5e' },
 ];
 
