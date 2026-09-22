@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const MAX_VISIBLE_FLOWERS = 30;
+const MAX_VISIBLE_FLOWERS = 30; // keep the garden visually calm while preserving every flower in the gallery
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
