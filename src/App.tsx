@@ -1,4 +1,9 @@
 import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
 const STORAGE_KEY = 'our-little-garden-flowers';
