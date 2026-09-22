@@ -6,7 +6,11 @@ const supabase = createClient(
 );
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const MAX_VISIBLE_FLOWERS = 30;
+const MAX_VISIBLE_FLOWERS = 20;
+const GARDEN_CENTER = { x: 50, y: 48 };
+const GARDEN_RADIUS = 42;
+const FLOWER_SAFE_RADIUS = 6.5;
+const FLOWER_MIN_DISTANCE = 11.5;
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -44,52 +48,69 @@ function seededValue(seed: number) {
 }
 
 function isInsideGarden(x: number, y: number) {
-  const horizontal = (x - 50) / 35;
-  const vertical = (y - 48) / 34;
-  return horizontal * horizontal + vertical * vertical <= 0.82;
+  const dx = x - GARDEN_CENTER.x;
+  const dy = y - GARDEN_CENTER.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance <= GARDEN_RADIUS - FLOWER_SAFE_RADIUS;
 }
 
-function getFlowerPositions(flowers: Flower[]) {
-  const sortedFlowers = flowers
+function getRefreshSeed() {
+  const values = new Uint32Array(1);
+  globalThis.crypto?.getRandomValues?.(values);
+  return values[0] || Math.floor(Math.random() * 4294967295) || 1;
+}
+
+function getFlowerPositions(flowers: Flower[], refreshSeed: number) {
+  const visibleFlowers = flowers
     .slice()
-    .sort((first, second) => getFlowerHash(first.id) - getFlowerHash(second.id))
+    .sort(
+      (first, second) =>
+        getFlowerHash(`${refreshSeed}:${first.id}`) -
+        getFlowerHash(`${refreshSeed}:${second.id}`),
+    )
     .slice(0, MAX_VISIBLE_FLOWERS);
 
   const positions = new Map<string, { x: number; y: number }>();
-  const minDistance = sortedFlowers.length <= 16 ? 12.5 : 10.5;
+  const candidates: Array<{ x: number; y: number }> = [];
 
-  sortedFlowers.forEach((flower) => {
-    const hash = getFlowerHash(flower.id);
+  for (let index = 0; index < visibleFlowers.length; index += 1) {
     let chosen: { x: number; y: number } | null = null;
-    let bestCandidate = { x: 50, y: 48 };
+    let bestCandidate = { x: GARDEN_CENTER.x, y: GARDEN_CENTER.y };
     let bestDistance = -1;
 
-    for (let attempt = 0; attempt < 500; attempt += 1) {
-      const seed = hash + attempt * 2654435761;
-      const x = 15 + seededValue(seed) * 70;
-      const y = 14 + seededValue(seed ^ 0x9e3779b9) * 68;
+    for (let attempt = 0; attempt < 6000; attempt += 1) {
+      const seed = refreshSeed + index * 0x9e3779b9 + attempt * 0x85ebca6b;
+      const angle = seededValue(seed) * Math.PI * 2;
+      const radius = Math.sqrt(seededValue(seed ^ 0x68bc21eb)) *
+        (GARDEN_RADIUS - FLOWER_SAFE_RADIUS);
+      const x = GARDEN_CENTER.x + Math.cos(angle) * radius;
+      const y = GARDEN_CENTER.y + Math.sin(angle) * radius;
 
       if (!isInsideGarden(x, y)) continue;
 
       let nearestDistance = Number.POSITIVE_INFINITY;
-      for (const position of positions.values()) {
+      for (const position of candidates) {
         const dx = position.x - x;
         const dy = position.y - y;
         nearestDistance = Math.min(nearestDistance, Math.sqrt(dx * dx + dy * dy));
-      }
-
-      if (positions.size === 0 || nearestDistance >= minDistance) {
-        chosen = { x, y };
-        break;
       }
 
       if (nearestDistance > bestDistance) {
         bestDistance = nearestDistance;
         bestCandidate = { x, y };
       }
+
+      if (candidates.length === 0 || nearestDistance >= FLOWER_MIN_DISTANCE) {
+        chosen = { x, y };
+        break;
+      }
     }
 
-    positions.set(flower.id, chosen ?? bestCandidate);
+    candidates.push(chosen ?? bestCandidate);
+  }
+
+  visibleFlowers.forEach((flower, index) => {
+    positions.set(flower.id, candidates[index]);
   });
 
   return positions;
@@ -181,6 +202,7 @@ function App() {
   const [drawingPreview, setDrawingPreview] = useState('');
   const [selectedFlower, setSelectedFlower] = useState<Flower | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [refreshSeed] = useState(getRefreshSeed);
 
   useEffect(() => {
     let isCurrent = true;
@@ -374,7 +396,7 @@ function App() {
               data-testid="img-garden"
             />
             <div className="planted-flowers" aria-label="Planted flowers">
-              {Array.from(getFlowerPositions(flowers).entries()).map(([flowerId, position]) => {
+              {Array.from(getFlowerPositions(flowers, refreshSeed).entries()).map(([flowerId, position]) => {
                 const flower = flowers.find((item) => item.id === flowerId);
                 if (!flower) return null;
 
