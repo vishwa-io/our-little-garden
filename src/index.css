@@ -1,8 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Patrick+Hand&family=Space+Grotesk:wght@400;500;600&display=swap');
-@import 'tailwindcss';
-@import 'tw-animate-css';
-
-@custom-variant dark (&:is(.dark *));
 
 :root {
   --background: 51 53% 95%;
