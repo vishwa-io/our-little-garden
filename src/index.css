@@ -111,6 +111,18 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--plant); 
   position: relative;
   width: 100%;
   z-index: 1;
+  animation: garden-float 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes garden-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .planted-flowers {
