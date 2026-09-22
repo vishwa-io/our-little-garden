@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const MAX_VISIBLE_FLOWERS = 20;
+const MAX_VISIBLE_FLOWERS = 30;
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -24,12 +24,7 @@ type Flower = {
   drawingCropped?: boolean;
 };
 
-const FLOWER_SLOTS = [
-  { x: 20, y: 20 }, { x: 35, y: 20 }, { x: 50, y: 20 }, { x: 65, y: 20 }, { x: 80, y: 20 },
-  { x: 20, y: 40 }, { x: 35, y: 40 }, { x: 50, y: 40 }, { x: 65, y: 40 }, { x: 80, y: 40 },
-  { x: 20, y: 60 }, { x: 35, y: 60 }, { x: 50, y: 60 }, { x: 65, y: 60 }, { x: 80, y: 60 },
-  { x: 20, y: 80 }, { x: 35, y: 80 }, { x: 50, y: 80 }, { x: 65, y: 80 }, { x: 80, y: 80 },
-];
+const FLOWER_MIN_DISTANCE = 8.5;
 
 function getFlowerHash(id: string) {
   let hash = 2166136261;
@@ -42,28 +37,64 @@ function getFlowerHash(id: string) {
   return hash >>> 0;
 }
 
+function seededValue(seed: number) {
+  let value = seed || 1;
+  value ^= value << 13;
+  value ^= value >>> 17;
+  value ^= value << 5;
+  return (value >>> 0) / 4294967296;
+}
+
+function isInsideGarden(x: number, y: number) {
+  const horizontal = (x - 50) / 43;
+  const vertical = (y - 47) / 38;
+  return horizontal * horizontal + vertical * vertical <= 0.88;
+}
+
 function getFlowerPositions(flowers: Flower[]) {
   const sortedFlowers = flowers
     .slice()
     .sort((first, second) => getFlowerHash(first.id) - getFlowerHash(second.id))
     .slice(0, MAX_VISIBLE_FLOWERS);
 
-  return new Map(
-    sortedFlowers.map((flower, index) => [flower.id, FLOWER_SLOTS[index]]),
-  );
+  const positions = new Map<string, { x: number; y: number }>();
+
+  sortedFlowers.forEach((flower) => {
+    const hash = getFlowerHash(flower.id);
+    let chosen = { x: 50, y: 47 };
+
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const seed = hash + attempt * 2654435761;
+      const x = 9 + seededValue(seed) * 82;
+      const y = 11 + seededValue(seed ^ 0x9e3779b9) * 72;
+
+      if (!isInsideGarden(x, y)) continue;
+
+      const hasNearbyFlower = Array.from(positions.values()).some((position) => {
+        const dx = position.x - x;
+        const dy = position.y - y;
+        return Math.sqrt(dx * dx + dy * dy) < FLOWER_MIN_DISTANCE;
+      });
+
+      if (!hasNearbyFlower) {
+        chosen = { x, y };
+        break;
+      }
+    }
+
+    positions.set(flower.id, chosen);
+  });
+
+  return positions;
 }
 
 function toFlower(row: { id: string; message: string; color: string; drawing: string }): Flower {
-  const position = getFlowerPosition(row.id);
-
   return {
     id: row.id,
     message: row.message,
     color: row.color,
     drawing: row.drawing,
     drawingCropped: true,
-    x: position.x,
-    y: position.y,
   };
 }
 
