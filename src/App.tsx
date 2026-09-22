@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const GARDEN_IMAGE = '/assets/garden-artwork.png';
-const STORAGE_KEY = 'our-little-garden-flowers';
+const MAX_VISIBLE_FLOWERS = 30;
 
 const COLORS = [
   { name: 'coral', value: '#ec6d58' },
@@ -26,14 +26,35 @@ type Flower = {
   y: number;
 };
 
-function loadFlowers(): Flower[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const flowers = saved ? JSON.parse(saved) : [];
-    return Array.isArray(flowers) ? flowers : [];
-  } catch {
-    return [];
+function getFlowerPosition(id: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
   }
+
+  const normalizedX = ((hash >>> 0) % 6200) / 100;
+  const normalizedY = (((hash >>> 8) >>> 0) % 5600) / 100;
+
+  return {
+    x: 19 + normalizedX,
+    y: 19 + normalizedY,
+  };
+}
+
+function toFlower(row: { id: string; message: string; color: string; drawing: string }): Flower {
+  const position = getFlowerPosition(row.id);
+
+  return {
+    id: row.id,
+    message: row.message,
+    color: row.color,
+    drawing: row.drawing,
+    drawingCropped: true,
+    x: position.x,
+    y: position.y,
+  };
 }
 
 function makeId() {
@@ -103,7 +124,7 @@ function cropDataUrlToContent(dataUrl: string) {
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [flowers, setFlowers] = useState<Flower[]>(loadFlowers);
+  const [flowers, setFlowers] = useState<Flower[]>([]);
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawing, setHasDrawing] = useState(false);
@@ -114,8 +135,52 @@ function App() {
   const [showGallery, setShowGallery] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(flowers));
-  }, [flowers]);
+    let isCurrent = true;
+
+    async function loadFlowersFromSupabase() {
+      const { data, error } = await supabase
+        .from('flowers')
+        .select('id, drawing, message, color');
+
+      if (error) {
+        console.error('Could not load flowers:', error);
+        return;
+      }
+
+      if (isCurrent) {
+        setFlowers((data ?? []).map(toFlower));
+      }
+    }
+
+    loadFlowersFromSupabase();
+
+    const channel = supabase
+      .channel('flowers-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'flowers' },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            drawing: string;
+            message: string;
+            color: string;
+          };
+
+          setFlowers((current) =>
+            current.some((flower) => flower.id === row.id)
+              ? current
+              : [...current, toFlower(row)],
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      isCurrent = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -214,17 +279,26 @@ function App() {
     event.preventDefault();
     if (!message.trim() || !hasDrawing || !drawingPreview) return;
 
-    const flower: Flower = {
-      id: makeId(),
-      message: message.trim(),
-      color: selectedColor,
-      drawing: drawingPreview,
-      drawingCropped: true,
-      x: 19 + Math.random() * 62,
-      y: 19 + Math.random() * 56,
-    };
+    const { data, error } = await supabase
+      .from('flowers')
+      .insert({
+        drawing: drawingPreview,
+        message: message.trim(),
+        color: selectedColor,
+      })
+      .select('id, drawing, message, color')
+      .single();
 
-    setFlowers((current) => [...current, flower]);
+    if (error || !data) {
+      console.error('Could not plant flower:', error);
+      return;
+    }
+
+    setFlowers((current) =>
+      current.some((flower) => flower.id === data.id)
+        ? current
+        : [...current, toFlower(data)],
+    );
     setMessage('');
     setIsPlanting(false);
     clearCanvas();
@@ -252,7 +326,11 @@ function App() {
               data-testid="img-garden"
             />
             <div className="planted-flowers" aria-label="Planted flowers">
-              {flowers.map((flower) => (
+              {flowers
+                .slice()
+                .sort((first, second) => getFlowerPosition(first.id).x - getFlowerPosition(second.id).x)
+                .slice(0, MAX_VISIBLE_FLOWERS)
+                .map((flower) => (
                 <button
                   className="planted-flower"
                   key={flower.id}
